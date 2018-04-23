@@ -10,10 +10,14 @@ import cascade_forest as cf
 
 import numpy as np
 
+
 X = np.random.rand(5000, 500)
 y = np.array(np.random.rand(5000) > 0.5, dtype=np.float32)
-
 d_train = cf.Dataset(X, y)
+
+X_test = np.random.rand(50, 500)
+y_test = np.array(np.random.rand(50) > 0.5, dtype=np.float32)
+d_test = cf.Dataset(X_test, y_test)
 
 config = {
         "max_layer": 3,
@@ -63,5 +67,14 @@ config = {
 
 cas = cf.CascadeForest(config)
 
-cas.train({}, d_train, d_train)
 
+cas.train({}, d_train, d_test)
+
+y_pred = cas.predict(d_test).mean(axis=1)
+
+dirname = 'cas_model'
+
+cas.save_model(dirname)
+
+cas_1 = cf.CascadeForest(dirname=dirname)
+y_pred_1 = cas_1.predict(d_test).mean(axis=1)

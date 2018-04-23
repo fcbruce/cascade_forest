@@ -9,6 +9,10 @@
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
+import os.path as osp
+import json
+import shutil
+import os
 
 class Dataset(object):
 
@@ -79,6 +83,8 @@ class XGBoostForest(object):
         self.kfold = kfold
         self.kth = kth
 
+        if model_file is not None:
+            self.bst = xgb.Booster(model_file=model_file)
 
     def train(self, params, num_round, d_train, d_test=None):
 
@@ -88,7 +94,7 @@ class XGBoostForest(object):
         X_test, y_test = d_test.data(), d_test.label()
         d_test = xgb.DMatrix(X_test, y_test)
 
-        watch_list = [(d_train, 'train'), (d_cv, 'cv')]
+        watch_list = [(d_train, 'train'), (d_cv, 'cv'), (d_test, 'test')]
         self.bst = xgb.train(params, d_train, num_round, watch_list)
 
         pred_cv = self.bst.predict(d_cv)
@@ -107,12 +113,23 @@ class XGBoostForest(object):
 
         return self.bst.predict(d)
 
+
+    def save_model(self, fname):
+
+        if self.bst is None:
+            raise Error('this model don\'t need to save {}'.format(fname))
+
+        self.bst.save_model(fname)
+
 class LightGBMForest(object):
 
     def __init__(self, kfold, kth, model_file=None):
 
         self.kfold = kfold
         self.kth = kth
+
+        if model_file is not None:
+            self.bst = lgb.Booster(model_file=model_file)
 
 
     def train(self, params, num_round, d_train, d_test=None):
@@ -121,6 +138,7 @@ class LightGBMForest(object):
         d_train = lgb.Dataset(X_train, y_train)
         d_cv = lgb.Dataset(X_cv, y_cv, reference=d_train)
         X_test, y_test = d_test.data(), d_test.label()
+        d_test = lgb.Dataset(X_test, y_test, reference=d_train)
 
         watch_list = [d_train,  d_cv]
         self.bst = lgb.train(params, d_train, num_boost_round=num_round, valid_sets=watch_list)
@@ -141,15 +159,25 @@ class LightGBMForest(object):
         return self.bst.predict(X)
 
 
+    def save_model(self, fname):
+
+        if self.bst is None:
+            raise Error('this model don\'t need to save {}'.format(fname))
+
+        self.bst.save_model(fname)
+
+
+_MODEL_FILE_TEMPLATE = '{}_layer-{}_forest-{}_fold-{}.model'
 
 class CascadeForest(object):
 
-    def __init__(self, config=None, model_file=None):
+    def __init__(self, config=None, dirname=None):
 
         self.models = {}
 
-        if model_file is not None:
-            pass
+        if dirname is not None:
+            self.load_model(dirname)
+            return
 
         if config is not None:
             self.max_layer = self._get_cfg_value(config, 'max_layer', None, True, int)
@@ -161,6 +189,7 @@ class CascadeForest(object):
         last_train_pred = None
         last_test_pred = None
 
+        arange = np.arange(d_train.n_sample)
         for layer in range(self.max_layer):
             layer_train_pred = []
             layer_test_pred = []
@@ -185,7 +214,8 @@ class CascadeForest(object):
                     self.models[(layer, fi, kth)] = bst
                     pred_cv, pred_test = bst.train(params, num_round, d_train, d_test)
 
-                    cur_train_pred[range(kth, d_train.n_sample, kfold)] = pred_cv
+                    cv = arange % kfold == kth
+                    cur_train_pred[cv] = pred_cv
 
                     cur_test_pred += pred_test
                 
@@ -228,7 +258,56 @@ class CascadeForest(object):
             last_pred = np.array(layer_pred).T
             data.set_attach(last_pred)
 
-        return last_pred.mean(axis=1)
+        data.clear_attach()
+
+        return last_pred
+
+
+    def save_model(self, dirname):
+
+        if osp.isdir(dirname): 
+            shutil.rmtree(dirname)
+        elif osp.exists(dirname):
+            os.remove(dirname)
+
+        os.mkdir(dirname)
+
+        with open(osp.join(dirname, 'cascade_forest.json'), 'w') as f:
+            cfg = {
+                    'max_layer': self.max_layer,
+                    'forests': self.forests
+                    }
+            json.dump(cfg, f)
+
+        for layer in range(self.max_layer):
+            for fi, forest_cfg in enumerate(self.forests):
+                lib = self._get_cfg_value(forest_cfg, 'lib', None, True, str)
+                kfold = self._get_cfg_value(forest_cfg, 'kfold', None, True, int)
+
+                for kth in range(kfold):
+                    self.models[(layer, fi, kth)].save_model(osp.join(dirname, _MODEL_FILE_TEMPLATE.format(lib, layer, fi, kth)))
+
+    def load_model(self, dirname):
+
+        with open(osp.join(dirname, 'cascade_forest.json'), 'r') as f:
+            cfg = json.load(f)
+            self.max_layer = self._get_cfg_value(cfg, 'max_layer', None, True, int)
+            self.forests = self._get_cfg_value(cfg, 'forests', None, True, list)
+
+        for layer in range(self.max_layer):
+            for fi, forest_cfg in enumerate(self.forests):
+                lib = self._get_cfg_value(forest_cfg, 'lib', None, True, str)
+                kfold = self._get_cfg_value(forest_cfg, 'kfold', None, True, int)
+
+                if lib == 'xgb':
+                    forest = XGBoostForest
+                elif lib == 'lgb':
+                    forest = LightGBMForest
+                else:
+                    raise ValueError('do not support {}'.format(lib))
+
+                for kth in range(kfold):
+                    self.models[(layer, fi, kth)] = forest(kfold, kth, (osp.join(dirname, _MODEL_FILE_TEMPLATE.format(lib, layer, fi, kth))))
 
 
     def _get_cfg_value(self, cfg, key, default, required=False, value_type=None):
