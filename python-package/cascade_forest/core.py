@@ -85,7 +85,7 @@ class XGBoostForest(object):
         (X_train, y_train), (X_cv, y_cv) = d_train.kfold_data(self.kfold, self.kth)
         d_train = xgb.DMatrix(X_train, y_train)
         d_cv = xgb.DMatrix(X_cv, y_cv)
-        X_test, y_test = d_test.data()
+        X_test, y_test = d_test.data(), d_test.label()
         d_test = xgb.DMatrix(X_test, y_test)
 
         watch_list = [(d_train, 'train'), (d_cv, 'cv')]
@@ -102,8 +102,8 @@ class XGBoostForest(object):
         if self.bst is None:
             raise ValueError('bst is None')
 
-        X, y = data.data()
-        d = xgb.DMatrix(X, y)
+        X = data.data()
+        d = xgb.DMatrix(X)
 
         return self.bst.predict(d)
 
