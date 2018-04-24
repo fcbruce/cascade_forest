@@ -95,7 +95,7 @@ class XGBoostForest(object):
         d_test = xgb.DMatrix(X_test, y_test)
 
         watch_list = [(d_train, 'train'), (d_cv, 'cv'), (d_test, 'test')]
-        self.bst = xgb.train(params, d_train, num_round, watch_list)
+        self.bst = xgb.Booster(model_file=xgb.train(params, d_train, num_round, watch_list).save_raw())
 
         pred_cv = self.bst.predict(d_cv)
         pred_test = self.bst.predict(d_test)
