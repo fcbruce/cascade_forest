@@ -6,9 +6,12 @@
 #
 #
 
-import cascade_forest as cf
 
 import numpy as np
+import logging
+logging.basicConfig(level=logging.INFO)
+
+import cascade_forest as cf
 
 
 X = np.random.rand(5000, 500)
@@ -68,7 +71,7 @@ config = {
 cas = cf.CascadeForest(config)
 
 
-cas.train({}, d_train, d_test)
+cas.train({'feval': 'auc'}, d_train, d_test)
 
 y_pred = cas.predict(d_test).mean(axis=1)
 

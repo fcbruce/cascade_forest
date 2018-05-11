@@ -189,7 +189,6 @@ _MODEL_FILE_TEMPLATE = '{}_layer-{}_forest-{}_fold-{}.model'
 class CascadeForest(object):
 
     def __init__(self, config=None, dirname=None):
-        print(logger.getEffectiveLevel())
 
         self.models = {}
 
@@ -246,7 +245,7 @@ class CascadeForest(object):
                     eval_cv = feval(d_train.label(), cur_train_pred)
                     eval_test = feval(d_test.label(), cur_test_pred)
 
-                    logger.info('info: layer-%d forest-%d, train-%s: %f, test-%s: %f', layer, fi, feval_name, eval_cv, feval_name, eval_test)
+                    logger.info('layer-%d forest-%d, train-%s: %f, test-%s: %f', layer, fi, feval_name, eval_cv, feval_name, eval_test)
 
 
                 layer_train_pred.append(cur_train_pred)
