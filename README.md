@@ -3,7 +3,7 @@
 ## Installation
 
 dependency:  
-- numpy `pip install numpy`
+- sklearn `pip install -U scikit-learn`
 - xgboost [Intallation](https://xgboost.readthedocs.io/en/latest/build.html)
 - lightgbm [Intallation](https://lightgbm.readthedocs.io/en/latest/Python-Intro.html#install)
 

@@ -9,10 +9,27 @@
 import numpy as np
 import xgboost as xgb
 import lightgbm as lgb
+from sklearn.metrics import roc_auc_score
 import os.path as osp
 import json
 import shutil
 import os
+
+import logging
+logger = logging.getLogger(__name__)
+
+def set_logger_level(level):
+    logger.setLevel(level)
+
+
+fevals_switcher = {
+        'auc': roc_auc_score
+        }
+
+def get_feval(feval):
+
+    return fevals_switcher.get(feval)
+
 
 class Dataset(object):
 
@@ -140,7 +157,7 @@ class LightGBMForest(object):
         X_test, y_test = d_test.data(), d_test.label()
         d_test = lgb.Dataset(X_test, y_test, reference=d_train)
 
-        watch_list = [d_train,  d_cv]
+        watch_list = [d_train,  d_cv, d_test]
         self.bst = lgb.train(params, d_train, num_boost_round=num_round, valid_sets=watch_list)
 
         pred_cv = self.bst.predict(X_cv)
@@ -172,6 +189,7 @@ _MODEL_FILE_TEMPLATE = '{}_layer-{}_forest-{}_fold-{}.model'
 class CascadeForest(object):
 
     def __init__(self, config=None, dirname=None):
+        print(logger.getEffectiveLevel())
 
         self.models = {}
 
@@ -185,6 +203,9 @@ class CascadeForest(object):
 
 
     def train(self, config, d_train, d_test=None):
+
+        feval_name = self._get_cfg_value(config, 'feval', None, False, str)
+        feval = get_feval(feval_name)
 
         last_train_pred = None
         last_test_pred = None
@@ -220,6 +241,13 @@ class CascadeForest(object):
                     cur_test_pred += pred_test
                 
                 cur_test_pred /= kfold
+
+                if feval is not None:
+                    eval_cv = feval(d_train.label(), cur_train_pred)
+                    eval_test = feval(d_test.label(), cur_test_pred)
+
+                    logger.info('info: layer-%d forest-%d, train-%s: %f, test-%s: %f', layer, fi, feval_name, eval_cv, feval_name, eval_test)
+
 
                 layer_train_pred.append(cur_train_pred)
                 layer_test_pred.append(cur_test_pred)

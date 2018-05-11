@@ -6,4 +6,4 @@
 #
 #
 
-from .core import Dataset, CascadeForest
+from .core import Dataset, CascadeForest, set_logger_level
