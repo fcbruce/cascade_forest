@@ -11,7 +11,7 @@ import numpy as np
 import logging
 logging.basicConfig(level=logging.INFO)
 
-import cascade_forest as cf
+import lbooster.cascade_forest as cf
 
 
 X = np.random.rand(5000, 500)
