@@ -45,13 +45,14 @@ class AdaBoost(object):
 
 def __init_weights(n):
 
-    return np.ones(n) / n
+    return np.ones(n) 
 
 def __update_weights(w, prediction, groundtruth):
-    e = ((prediction != groundtruth) * w).sum()
+    e = ((prediction != groundtruth) * w).sum() / w.sum()
+    print(e)
     alpha = np.log((1 - e) / e) / 2
-    w = np.exp(-alpha * (prediction * groundtruth))
-    return alpha, w / w.sum()
+    w = np.exp(-alpha * (prediction * groundtruth)) * w
+    return alpha, w 
 
 
 def train_xgb(ada_round, xgb_params, dtrain, xgb_num_round, watchlist=(), sig=lambda x: (x > 0.5) * 2 - 1):
@@ -62,7 +63,7 @@ def train_xgb(ada_round, xgb_params, dtrain, xgb_num_round, watchlist=(), sig=la
     w =  __init_weights(n) 
 
     for i in range(ada_round):
-        dtrain.set_weight(w * n)
+        dtrain.set_weight(w)
         bst = xgb.train(xgb_params, dtrain, xgb_num_round, watchlist)
         prediction = bst.predict(dtrain)
         prediction = sig(prediction)
