@@ -10,7 +10,6 @@ import lightgbm as lgb
 import numpy as np
 from sklearn.metrics import roc_auc_score
 
-
 class XGBWatcher(object):
 
     def __init__(self, sig, watchlist=(), dtrain=None):
@@ -104,6 +103,7 @@ def train_xgb(ada_round, xgb_params, dtrain, xgb_num_round, watchlist=(), sig=la
 
     for i in range(ada_round):
         dtrain.set_weight(w)
+        xgb_params['seed'] = i
         bst = xgb.train(xgb_params, dtrain, xgb_num_round)
         prediction = bst.predict(dtrain)
         prediction = sig(prediction)
