@@ -8,6 +8,46 @@
 import xgboost as xgb
 import lightgbm as lgb
 import numpy as np
+from sklearn.metrics import roc_auc_score
+
+
+class XGBWatcher(object):
+
+    def __init__(self, sig, watchlist=(), dtrain=None):
+
+        self.sig = sig
+        self.watchlist = watchlist
+        self.dtrain = dtrain
+        self.preds = [ None ] * len(watchlist)
+
+    def update(self, r, alpha, bst, dtrain_preds=None):
+
+        displays = []
+
+        for i, watch in enumerate(self.watchlist):
+
+            d, tag = watch
+            if d is self.dtrain:
+                pred = dtrain_preds
+            else:
+                pred = self.sig(bst.predict(d))
+
+            pred = pred * alpha
+
+            last_pred = self.preds[i]
+
+            self.preds[i] = pred if last_pred is None else last_pred + pred 
+
+            err = ((self.preds[i] > 0) != d.get_label()).mean()
+            auc = roc_auc_score(d.get_label(), self.preds[i])
+
+            text = '{}-err: {:6f}, {}-auc: {:6f}'.format(tag, err, tag, auc)
+            displays.append(text)
+
+        print('[{}]\t{}'.format(r, '\t'.join(displays)))
+        
+
+
 
 class AdaBoost(object):
 
@@ -49,7 +89,6 @@ def __init_weights(n):
 
 def __update_weights(w, prediction, groundtruth):
     e = ((prediction != groundtruth) * w).sum() / w.sum()
-    print(e)
     alpha = np.log((1 - e) / e) / 2
     w = np.exp(-alpha * (prediction * groundtruth)) * w
     return alpha, w 
@@ -61,15 +100,17 @@ def train_xgb(ada_round, xgb_params, dtrain, xgb_num_round, watchlist=(), sig=la
     prediction = None
     ada = AdaBoost(xgb.DMatrix, sig)
     w =  __init_weights(n) 
+    watcher = XGBWatcher(sig, watchlist, dtrain)
 
     for i in range(ada_round):
         dtrain.set_weight(w)
-        bst = xgb.train(xgb_params, dtrain, xgb_num_round, watchlist)
+        bst = xgb.train(xgb_params, dtrain, xgb_num_round)
         prediction = bst.predict(dtrain)
         prediction = sig(prediction)
         bst = xgb.Booster(model_file=bst.save_raw())
         alpha, w = __update_weights(w, prediction, groundtruth)
         ada.add(alpha, bst)
+        watcher.update(i, alpha, bst, prediction)
 
     return ada
 
