@@ -9,6 +9,10 @@ import xgboost as xgb
 import lightgbm as lgb
 import numpy as np
 from sklearn.metrics import roc_auc_score
+import os.path as osp
+import json
+import shutil
+import os
 
 class XGBWatcher(object):
 
@@ -50,7 +54,7 @@ class XGBWatcher(object):
 
 class AdaBoost(object):
 
-    def __init__(self, dtype, sig=lambda x: (x > 0.5) * 2 - 1):
+    def __init__(self, dtype=None, sig=lambda x: (x > 0.5) * 2 - 1):
         
         self.gs = []
         self.dtype = dtype
@@ -72,13 +76,59 @@ class AdaBoost(object):
 
         return prediction
 
-    def load(self, path):
+    def load(self, dirname):
 
-        pass
+        with open(osp.join(dirname, 'adaboost.json'), 'r') as f:
+            cfg = json.load(f)
+            tag = cfg['tag']
+            gs = cfg['alphas']
+            if tag == 'xgboost':
+                self.dtype = xgb.DMatrix
+            else:
+                raise TypeError('this type {} is not supported to be loaded'.format(tag))
 
-    def save(self, path):
+        self.gs = []
 
-        pass
+        for g in gs:
+            alpha = g['alpha']
+            file_path = g['file_path']
+
+            if tag == 'xgboost':
+                bst = xgb.Booster(model_file=osp.join(dirname, file_path))
+
+            self.gs.append((alpha, bst))
+
+
+
+    def save(self, dirname):
+
+        if osp.isdir(dirname): 
+            shutil.rmtree(dirname)
+        elif osp.exists(dirname):
+            os.remove(dirname)
+
+        os.mkdir(dirname)
+
+        alphas = []
+        for i, g in enumerate(self.gs):
+            file_path = '{}.model'.format(i)
+            alpha, bst = g
+            bst.save_model(osp.join(dirname, file_path))
+            alphas.append({'alpha': alpha, 'file_path': file_path})
+
+        with open(osp.join(dirname, 'adaboost.json'), 'w') as f:
+            if self.dtype is xgb.DMatrix:
+                tag = 'xgboost'
+            else:
+                raise TypeError('this type {} is not supported to be saved'.format(self.dtype))
+
+            cfg = {
+                    'tag': tag,
+                    'alphas': alphas
+                    }
+
+            json.dump(cfg, f)
+
 
 
 

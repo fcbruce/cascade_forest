@@ -6,7 +6,7 @@
 #
 #
 
-import lbooster.adaboost as ada
+import lbooster.adaboost as Ada
 import xgboost as xgb
 import numpy as np
 from sklearn.metrics import roc_auc_score as auc
@@ -35,6 +35,13 @@ params = {
     "num_threads": 4
     }
 
-ada = ada.train_xgb(10, params, d_train, 50, watchlist)
+ada = Ada.train_xgb(10, params, d_train, 5, watchlist)
 pred = ada.predict(d_train)
 print(auc(y, pred))
+
+ada.save('ada_model')
+
+ada1 = Ada.AdaBoost()
+ada1.load('ada_model')
+pred1 = ada1.predict(d_train)
+print(auc(y, pred1))
