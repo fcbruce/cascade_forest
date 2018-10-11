@@ -15,13 +15,6 @@ import json
 import shutil
 import os
 
-import logging
-logger = logging.getLogger(__name__)
-
-def set_logger_level(level):
-    logger.setLevel(level)
-
-
 fevals_switcher = {
         'auc': roc_auc_score
         }
@@ -245,7 +238,7 @@ class CascadeForest(object):
                     eval_cv = feval(d_train.label(), cur_train_pred)
                     eval_test = feval(d_test.label(), cur_test_pred)
 
-                    logger.info('layer-%d forest-%d, train-%s: %f, test-%s: %f', layer, fi, feval_name, eval_cv, feval_name, eval_test)
+                    print('layer-{} forest-{},\ttrain-{}: {:.6f},\ttest-{}: {:.6f}'.format(layer, fi, feval_name, eval_cv, feval_name, eval_test))
 
 
                 layer_train_pred.append(cur_train_pred)
